@@ -1,3 +1,6 @@
+Вот полный, аккуратно проверенный workflow. Подставь **валидный ARN** роли в секрет `AWS_ROLE_ARN` в Settings → Secrets → Actions, и он будет работать:
+
+```yaml
 name: CI-CD
 
 on:
@@ -22,7 +25,6 @@ jobs:
       contents: read
       packages: write
 
-    # делаем outputs, чтобы terraform-job мог взять теги образов
     outputs:
       producer: ${{ steps.images.outputs.producer }}
       fraud: ${{ steps.images.outputs.fraud }}
@@ -40,9 +42,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # -----------------------------
-      # Function to lowercase the repo
-      # -----------------------------
       - name: Lowercase repo name
         id: repo
         run: |
@@ -93,6 +92,10 @@ jobs:
       id-token: write
       contents: read
 
+    env:
+      AWS_REGION: ${{ env.AWS_REGION }}
+      TF_WORKING_DIR: ${{ env.TF_WORKING_DIR }}
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -101,19 +104,19 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-2
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.9.5
+          terraform_version: "1.9.5"
 
       - name: Terraform Init
-        working-directory: infra/terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
 
       - name: Terraform Plan
-        working-directory: infra/terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           TF_VAR_container_image_producer: ${{ needs.build-and-push.outputs.producer }}
           TF_VAR_container_image_fraud: ${{ needs.build-and-push.outputs.fraud }}
@@ -126,7 +129,7 @@ jobs:
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
-        working-directory: infra/terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           TF_VAR_container_image_producer: ${{ needs.build-and-push.outputs.producer }}
           TF_VAR_container_image_fraud: ${{ needs.build-and-push.outputs.fraud }}
@@ -136,3 +139,4 @@ jobs:
           TF_VAR_confluent_api_secret: ${{ secrets.CONFLUENT_API_SECRET }}
           TF_VAR_confluent_bootstrap_servers: ${{ secrets.CONFLUENT_BOOTSTRAP_SERVERS }}
         run: terraform apply -auto-approve tfplan
+```
