@@ -3,6 +3,11 @@ name: CI-CD
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
   AWS_REGION: us-east-2
